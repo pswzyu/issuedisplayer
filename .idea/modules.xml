@@ -2,8 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/RailIssues.iml" filepath="$PROJECT_DIR$/RailIssues.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
+      <module fileurl="file://$PROJECT_DIR$/issuedisplayer.iml" filepath="$PROJECT_DIR$/issuedisplayer.iml" />
     </modules>
   </component>
 </project>

@@ -113,6 +113,7 @@ public class MainActivity extends AppCompatActivity implements GetIssuesAsyncTas
                 issue_entry.title = one_issue.optString("title", "");
                 issue_entry.content = one_issue.optString("body", "");
                 issue_entry.number = one_issue.optLong("number", -1);
+                issue_list.add(issue_entry);
             }
 
         } catch (JSONException e) {

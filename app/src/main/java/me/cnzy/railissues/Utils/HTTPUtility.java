@@ -291,6 +291,111 @@ public class HTTPUtility {
 	}
 
 	/**
+	 * Use this function to initiate a post request it will save the returned
+	 * file to the dir supplied to this function
+	 *
+	 * @param requestURL
+	 *            the url where the request is going to be sent to
+	 * @param dir
+	 *            the dir that you want to save the returned file, can be null
+	 *            if you are sure that the response type is not going to be
+	 *            downloaded
+	 * @return the JSON reply from server, filename of the downloaded file will
+	 *         be in the "file_path" index. null/server returned failure message
+	 *         will be returned if failed
+	 * @throws IOException
+	 */
+	public HTTPResult doGet(String requestURL, File dir) throws IOException {
+
+		URL url = new URL(requestURL);
+		httpConn = (HttpURLConnection) url.openConnection();
+		httpConn.setConnectTimeout(20000);
+		httpConn.setRequestMethod("GET");
+
+		httpConn.setUseCaches(false);
+		httpConn.setDoInput(true);
+
+		//httpConn.setRequestProperty("User-Agent", "ClothesMatcherAndroid");
+		httpConn.setRequestProperty("Cookie", cookies);
+
+		// receive from the server !
+		HTTPResult response = new HTTPResult();
+
+		// checks server's status code first
+		response.response_code = httpConn.getResponseCode();
+		if (response.response_code == HttpURLConnection.HTTP_OK) {
+
+			String response_type = httpConn.getContentType();
+
+			Map<String, List<String>> headerFields = httpConn.getHeaderFields();
+			response.head_fields = headerFields;
+			parseAndAddCookies(headerFields.get("Set-Cookie"), response);
+			parseAndAddCookies(headerFields.get("Set-Cookie2"), response);
+
+			httpInputStream = httpConn.getInputStream();
+
+			response.was_download = shouldDownload(response_type);
+
+			if (response.was_download) {
+
+				String fileName = null;
+				String disposition = httpConn.getHeaderField("Content-Disposition");
+				String contentType = httpConn.getContentType();
+				int contentLength = httpConn.getContentLength();
+
+				if (disposition != null) {
+					// extracts file name from header field
+					int index = disposition.indexOf("filename=");
+					if (index > 0) {
+						fileName = disposition.substring(index + 10, disposition.length() - 1);
+					}
+				} else {
+					// extracts file name from URL
+					fileName = requestURL.substring(requestURL.lastIndexOf("/") + 1, requestURL.length());
+				}
+
+				if (fileName == null ) {
+					response.error.put("filename", "No filename in the HTTP response!");
+				} else if (dir == null) {
+					response.error.put("filename", "No dir given, but the response is downloadable!");
+				} else {
+					response.response_file = new File(dir, fileName);
+					fileOutputStream = new FileOutputStream(response.response_file);
+					int bytesRead = -1;
+					byte[] buffer = new byte[BUFFER_SIZE];
+					while ((bytesRead = httpInputStream.read(buffer)) != -1) {
+						fileOutputStream.write(buffer, 0, bytesRead);
+					}
+					fileOutputStream.close();
+
+					response.succeeded = true;
+				}
+				httpInputStream.close();
+			} else {
+				httpReader = new BufferedReader(new InputStreamReader(httpInputStream));
+				String line = null;
+				String all_lines = "";
+				while ((line = httpReader.readLine()) != null) {
+					all_lines += line;
+				}
+				response.response_text = all_lines;
+				httpReader.close();
+
+				response.succeeded = true;
+			}
+		} else {
+			response.error.put("http", "Server returned non-OK status: " + response.response_code);
+		}
+
+		httpConn.disconnect();
+
+		response.dump();
+
+		return response;
+
+	}
+
+	/**
 	 * Adds a form field to the request, used only for the multipart encoding
 	 * 
 	 * @param name
@@ -389,7 +494,7 @@ public class HTTPUtility {
 	}
 
 	private boolean shouldDownload(String ct) {
-		if (ct == null || ct.contains("text")) {
+		if (ct == null || ct.contains("text") || ct.contains("json")) {
 			return false;
 		}
 		return true;
