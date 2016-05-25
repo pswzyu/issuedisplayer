@@ -1,5 +1,6 @@
 package me.cnzy.railissues;
 
+import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
@@ -7,10 +8,12 @@ import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.AdapterView;
+import android.widget.Button;
 import android.widget.ListView;
 import android.widget.ProgressBar;
 
@@ -19,7 +22,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.LinkedList;
+import java.util.List;
 
+import me.cnzy.railissues.Utils.Config;
 import me.cnzy.railissues.Utils.GetCommentsAsyncTask;
 import me.cnzy.railissues.Utils.GetCommentsAsyncTaskCallback;
 import me.cnzy.railissues.Utils.GetIssuesAsyncTask;
@@ -27,12 +32,15 @@ import me.cnzy.railissues.Utils.GetIssuesAsyncTaskCallback;
 import me.cnzy.railissues.Utils.HTTPUtility;
 
 public class MainActivity extends AppCompatActivity implements GetIssuesAsyncTaskCallback,
-        AdapterView.OnItemClickListener {
+        AdapterView.OnItemClickListener, View.OnClickListener {
 
     public static final String TAG = "VI.MainActivity";
     private ProgressBar pb_get_issues = null;
     private ListView lv_issue_list = null;
     private IssuesListAdapter issue_list_adapter = null;
+    private View v_list_footer = null;
+    private Button btn_load_more_issues = null;
+    private String next_page_link = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,6 +63,12 @@ public class MainActivity extends AppCompatActivity implements GetIssuesAsyncTas
         issue_list_adapter = new IssuesListAdapter(this);
         lv_issue_list.setAdapter(issue_list_adapter);
         lv_issue_list.setOnItemClickListener(this);
+        LayoutInflater inflater = (LayoutInflater) this
+                .getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+        v_list_footer = inflater.inflate(R.layout.view_issue_list_footer, lv_issue_list, false);
+        btn_load_more_issues = (Button)v_list_footer.findViewById(R.id.btn_load_more_issues);
+        btn_load_more_issues.setOnClickListener(this);
+        lv_issue_list.addFooterView(v_list_footer);
 
         // get all the issues in json format
         startGetIssues();
@@ -67,7 +81,7 @@ public class MainActivity extends AppCompatActivity implements GetIssuesAsyncTas
     private void startGetIssues() {
         // first show a progress icon
         pb_get_issues.setVisibility(View.VISIBLE);
-        new GetIssuesAsyncTask(this, null).execute((String[])null);
+        new GetIssuesAsyncTask(this, null).execute(Config.getRepoIssuesURL());
     }
 
     @Override
@@ -102,6 +116,36 @@ public class MainActivity extends AppCompatActivity implements GetIssuesAsyncTas
     public void getIssuesTaskResult(String token, String action, HTTPUtility.HTTPResult reply) {
         // hide the progress bar
         pb_get_issues.setVisibility(View.GONE);
+
+        if (!reply.succeeded) {
+            // TODO: alert user that a network faulure has happened
+            return;
+        }
+        // if there are linkes provided for next, save it
+        if (reply.head_fields.containsKey("Link")) {
+            List<String> link_list = reply.head_fields.get("Link");
+            String link_str = link_list.get(0);
+            // <https://api.github.com/repositories/8514/issues?sort=update&page=33>; rel="next", <https://api.github.com/repositories/8514/issues?sort=update&page=33>; rel="last", <https://api.github.com/repositories/8514/issues?sort=update&page=1>; rel="first", <https://api.github.com/repositories/8514/issues?sort=update&page=31>; rel="prev"
+            String[] link_infos = link_str.split(",");
+            for (String one_link_info : link_infos) {
+                // if the type of this link is next, then we save it
+                String[] link_and_type = one_link_info.split(";");
+                // if the type is next
+                if (link_and_type[1].trim().equals("rel=\"next\"")) {
+                    String link = link_and_type[0].trim();
+                    link = link.substring(1, link.length() - 1); // remove the < and >
+                    next_page_link = link;
+                    break; // there can only be one next link
+                }
+            }
+            // if there is no next page, we hide the load more button
+            if (next_page_link == null) {
+                btn_load_more_issues.setVisibility(View.GONE);
+            } else { // if there is, show the load more button
+                btn_load_more_issues.setVisibility(View.VISIBLE);
+            }
+        }
+
         Log.d(TAG, reply.response_text);
         LinkedList<GithubIssueEntry> issue_list = new LinkedList<>();
 
@@ -127,7 +171,7 @@ public class MainActivity extends AppCompatActivity implements GetIssuesAsyncTas
     }
 
     /**
-     *
+     * this function is called when an item in the list is clicked
      * @param parent
      * @param view
      * @param position
@@ -145,5 +189,16 @@ public class MainActivity extends AppCompatActivity implements GetIssuesAsyncTas
         info.putString("issue_id", Long.toString(id));
         intent.putExtras(info);
         startActivity(intent);
+    }
+
+    /**
+     * this function is called when the load more issues button is clicked
+     * @param v
+     */
+    @Override
+    public void onClick(View v) {
+        // load more issues
+        if (next_page_link == null) return;
+        new GetIssuesAsyncTask(this, null).execute(next_page_link);
     }
 }

@@ -53,10 +53,12 @@ public class GetIssuesAsyncTask extends AsyncTask<String, Void, HTTPResult> {
     		Log.d(TAG, info);
     	}
 
+        if (params == null || params.length == 0) return null;
+
         // do the post
         HTTPResult result = null;
         try {
-            result = http.doGet(Config.getRepoIssuesURL(), null);
+            result = http.doGet(params[0], null);
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
