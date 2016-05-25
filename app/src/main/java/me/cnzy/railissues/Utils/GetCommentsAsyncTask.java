@@ -62,7 +62,7 @@ public class GetCommentsAsyncTask extends AsyncTask<String, Void, HTTPResult> {
         // do the post
         HTTPResult result = null;
         try {
-            result = http.doGet(Config.getIssueCommentsURL(params[0]), null);
+            result = http.doGet(params[0], null);
         } catch (IOException e) {
             e.printStackTrace();
         } finally {

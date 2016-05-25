@@ -9,12 +9,41 @@
     android:paddingTop="@dimen/activity_vertical_margin"
     tools:context="me.cnzy.railissues.CommentsActivity">
 
-    <TextView
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:id="@+id/sv_comments"
+        android:layout_centerHorizontal="true"
+        android:layout_above="@+id/ll_pagination_btns"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentLeft="true">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Comments Here"
+            android:id="@+id/tv_all_comments"/>
+    </ScrollView>
+
+    <LinearLayout
+        android:orientation="horizontal"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Comments Here"
-        android:id="@+id/tv_all_comments"
-        android:layout_alignParentTop="true"
+        android:layout_alignParentBottom="true"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="229dp" />
+        android:id="@+id/ll_pagination_btns">
+
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Previous Page"
+            android:id="@+id/btn_prev_page" />
+
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Next Page"
+            android:id="@+id/btn_next_page" />
+    </LinearLayout>
+
 </RelativeLayout>

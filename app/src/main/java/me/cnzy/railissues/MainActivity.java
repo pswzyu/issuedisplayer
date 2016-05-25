@@ -114,13 +114,17 @@ public class MainActivity extends AppCompatActivity implements GetIssuesAsyncTas
      */
     @Override
     public void getIssuesTaskResult(String token, String action, HTTPUtility.HTTPResult reply) {
+
         // hide the progress bar
         pb_get_issues.setVisibility(View.GONE);
 
-        if (!reply.succeeded) {
+        if (reply == null || !reply.succeeded) {
             // TODO: alert user that a network faulure has happened
             return;
         }
+
+        next_page_link = null;
+
         // if there are linkes provided for next, save it
         if (reply.head_fields.containsKey("Link")) {
             List<String> link_list = reply.head_fields.get("Link");
@@ -138,12 +142,14 @@ public class MainActivity extends AppCompatActivity implements GetIssuesAsyncTas
                     break; // there can only be one next link
                 }
             }
-            // if there is no next page, we hide the load more button
-            if (next_page_link == null) {
-                btn_load_more_issues.setVisibility(View.GONE);
-            } else { // if there is, show the load more button
-                btn_load_more_issues.setVisibility(View.VISIBLE);
-            }
+
+        }
+
+        // if there is no next page, we hide the load more button
+        if (next_page_link == null) {
+            btn_load_more_issues.setVisibility(View.GONE);
+        } else { // if there is, show the load more button
+            btn_load_more_issues.setVisibility(View.VISIBLE);
         }
 
         Log.d(TAG, reply.response_text);
@@ -156,6 +162,9 @@ public class MainActivity extends AppCompatActivity implements GetIssuesAsyncTas
                 GithubIssueEntry issue_entry = new GithubIssueEntry();
                 issue_entry.title = one_issue.optString("title", "");
                 issue_entry.content = one_issue.optString("body", "");
+                if (issue_entry.content.length() > 140) {
+                    issue_entry.content = issue_entry.content.substring(0, 140);
+                }
                 issue_entry.number = one_issue.optLong("number", -1);
                 issue_list.add(issue_entry);
             }
