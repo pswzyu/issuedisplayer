@@ -1,10 +1,12 @@
 package me.cnzy.railissues;
 
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
@@ -31,8 +33,8 @@ import me.cnzy.railissues.Utils.GetIssuesAsyncTask;
 import me.cnzy.railissues.Utils.GetIssuesAsyncTaskCallback;
 import me.cnzy.railissues.Utils.HTTPUtility;
 
-public class MainActivity extends AppCompatActivity implements GetIssuesAsyncTaskCallback,
-        AdapterView.OnItemClickListener, View.OnClickListener {
+public class MainActivity extends AppCompatActivity implements GetIssuesAsyncTaskCallback, GetCommentsAsyncTaskCallback,
+        AdapterView.OnItemClickListener, View.OnClickListener, AdapterView.OnItemLongClickListener {
 
     public static final String TAG = "VI.MainActivity";
     private ProgressBar pb_get_issues = null;
@@ -41,6 +43,7 @@ public class MainActivity extends AppCompatActivity implements GetIssuesAsyncTas
     private View v_list_footer = null;
     private Button btn_load_more_issues = null;
     private String next_page_link = null;
+    private StringBuffer all_comments = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,6 +66,7 @@ public class MainActivity extends AppCompatActivity implements GetIssuesAsyncTas
         issue_list_adapter = new IssuesListAdapter(this);
         lv_issue_list.setAdapter(issue_list_adapter);
         lv_issue_list.setOnItemClickListener(this);
+        lv_issue_list.setOnItemLongClickListener(this);
         LayoutInflater inflater = (LayoutInflater) this
                 .getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         v_list_footer = inflater.inflate(R.layout.view_issue_list_footer, lv_issue_list, false);
@@ -192,12 +196,9 @@ public class MainActivity extends AppCompatActivity implements GetIssuesAsyncTas
             Log.e(TAG, "The issue user clicked on has a invalid issue number.");
             return;
         }
-        // start the comments activity to show the comments
-        Intent intent = new Intent(MainActivity.this, CommentsActivity.class);
-        Bundle info = new Bundle();
-        info.putString("issue_id", Long.toString(id));
-        intent.putExtras(info);
-        startActivity(intent);
+        // start the series of http calls to fetch all comments
+        all_comments = new StringBuffer();
+        new GetCommentsAsyncTask(this, null).execute(Config.getIssueCommentsURL(Long.toString(id)));
     }
 
     /**
@@ -209,5 +210,90 @@ public class MainActivity extends AppCompatActivity implements GetIssuesAsyncTas
         // load more issues
         if (next_page_link == null) return;
         new GetIssuesAsyncTask(this, null).execute(next_page_link);
+    }
+
+    @Override
+    public void getCommentsTaskResult(String token, String action, HTTPUtility.HTTPResult reply) {
+        if (reply == null || !reply.succeeded) {
+            // TODO: showFailureMessage("Failed", "Network Issues!");
+            return;
+        }
+        // first add the comments to string buffer
+        try {
+            JSONArray comments = new JSONArray(reply.response_text);
+            for (int step = 0; step < comments.length(); step++) {
+                JSONObject one_comment = comments.getJSONObject(step);
+                JSONObject user = one_comment.getJSONObject("user");
+                if (all_comments.length() > 0) all_comments.append("\n-------------------\n");
+                all_comments.append(user.optString("login"));
+                all_comments.append(":\n");
+                all_comments.append(one_comment.optString("body"));
+            }
+
+        } catch (JSONException e) {
+            e.printStackTrace();
+            // TODO: showFailureMessage("Failed", "Network Issues!");
+            return;
+        }
+
+
+        // if there are links provided for next, save it
+        String next_comment_link = null;
+        if (reply.head_fields.containsKey("Link")) {
+            List<String> link_list = reply.head_fields.get("Link");
+            String link_str = link_list.get(0);
+            String[] link_infos = link_str.split(",");
+            for (String one_link_info : link_infos) {
+                // if the type of this link is next, then we save it
+                String[] link_and_type = one_link_info.split(";");
+                // if the type is next
+                if (link_and_type[1].trim().equals("rel=\"next\"")) {
+                    String link = link_and_type[0].trim();
+                    link = link.substring(1, link.length() - 1); // remove the < and >
+                    next_comment_link = link;
+                }
+            }
+        }
+
+        // if there are no further next comment page links, show the dialog
+        if (next_comment_link == null && all_comments != null) {
+            if (all_comments.length() > 0) {
+                showDialog("Comments", all_comments.toString(), this);
+            } else {
+                showDialog("Comments", "There are currently no comments for this issue!", this);
+            }
+        }
+
+    }
+
+    public static void showDialog(String title, String message, Context context){
+        AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(
+                context);
+        alertDialogBuilder.setTitle(title);
+        alertDialogBuilder
+                .setMessage(message)
+                .setCancelable(false)
+                .setPositiveButton("Close",new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog,int id) {
+                        dialog.cancel();
+                    }
+                });
+        AlertDialog alertDialog = alertDialogBuilder.create();
+        alertDialog.show();
+    }
+
+    @Override
+    public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
+        if (id < 0) {
+            Log.e(TAG, "The issue user clicked on has a invalid issue number.");
+            return false;
+        }
+        // start the comments activity to show the comments
+        Intent intent = new Intent(MainActivity.this, CommentsActivity.class);
+        Bundle info = new Bundle();
+        info.putString("issue_id", Long.toString(id));
+        intent.putExtras(info);
+        startActivity(intent);
+        return true;
     }
 }
